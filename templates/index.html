@@ -31,26 +31,24 @@
               </div>
             {% endfor %}
             <div class="col-md-6">
-              <label class="form-label">Supplier 1</label>
-              <select name="Maida Supplier 1" class="form-select" required>
-                {% for name in encoders['Maida Supplier 1'].keys() %}
-                  <option value="{{ name }}"
-                    {% if form and form['Maida Supplier 1']==name %}selected{% endif %}>
-                    {{ name }}
-                  </option>
-                {% endfor %}
-              </select>
+              <label class="form-label">Maida Supplier 1</label>
+              <input type="text" name="Maida Supplier 1" 
+                     class="form-control" required
+                     placeholder="Enter supplier name"
+                     value="{{ form['Maida Supplier 1'] if form else '' }}"/>
+              <div class="form-text">
+                Known suppliers: {{ ', '.join(encoders['Maida Supplier 1'].keys()) }}
+              </div>
             </div>
             <div class="col-md-6">
-              <label class="form-label">Supplier 2</label>
-              <select name="Maida Supplier 2" class="form-select" required>
-                {% for name in encoders['Maida Supplier 2'].keys() %}
-                  <option value="{{ name }}"
-                    {% if form and form['Maida Supplier 2']==name %}selected{% endif %}>
-                    {{ name }}
-                  </option>
-                {% endfor %}
-              </select>
+              <label class="form-label">Maida Supplier 2</label>
+              <input type="text" name="Maida Supplier 2" 
+                     class="form-control" required
+                     placeholder="Enter supplier name"
+                     value="{{ form['Maida Supplier 2'] if form else '' }}"/>
+              <div class="form-text">
+                Known suppliers: {{ ', '.join(encoders['Maida Supplier 2'].keys()) }}
+              </div>
             </div>
           </div>
           <div class="mt-4">
@@ -58,20 +56,21 @@
           </div>
         </form>
 
+
         {% if submitted %}
           <hr class="my-4"/>
           <h4>Prediction</h4>
           <p class="fs-5">
-            <strong>Water:</strong> {{ water }} L 
-            <strong>ABC:</strong> {{ abc }} kg
+            <strong>Water:</strong> {{ water }} L 
+            <strong>ABC:</strong> {{ abc }} kg
           </p>
           <h5 class="mt-4">Provide Feedback</h5>
           <form action="{{ url_for('feedback') }}" method="post">
-            {% for key in ['AIA','TA','Alcoholic Acidity','Gluten','SV','Moisture',
-                           'Penetrometer Reading','Dough Temperature',
-                           'Maida Supplier 1','Maida Supplier 2'] %}
+            {% for key in ['AIA','TA','Alcoholic Acidity','Gluten','SV','Moisture'] %}
               <input type="hidden" name="{{ key }}" value="{{ form[key] }}">
             {% endfor %}
+            <input type="hidden" name="Maida Supplier 1" value="{{ form['Maida Supplier 1'] }}">
+            <input type="hidden" name="Maida Supplier 2" value="{{ form['Maida Supplier 2'] }}">
             <input type="hidden" name="Pred Water" value="{{ water }}">
             <input type="hidden" name="Pred ABC" value="{{ abc }}">
             <div class="row g-3">

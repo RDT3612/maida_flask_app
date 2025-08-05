@@ -4,13 +4,16 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 import joblib
 
+
 app = Flask(__name__)
+
 
 # Paths
 DATA_PATH     = os.path.join('data', 'ML-Process-control.xlsx')
 MODEL_PATH    = os.path.join('models', 'water_abc_model.pkl')
 ENCODERS_PATH = os.path.join('models', 'encoders.json')
 FEEDBACK_CSV  = os.path.join('data', 'feedback.csv')
+
 
 # Feature lists
 ALL_FEATURES = [
@@ -23,6 +26,28 @@ PRED_FEATURES = [
     'Maida Supplier 1','Maida Supplier 2'
 ]
 
+
+def update_encoders(supplier1, supplier2):
+    """Update encoders with new supplier names if they don't exist"""
+    global encoders
+    
+    # Check and add new suppliers to encoders
+    if supplier1 not in encoders['Maida Supplier 1']:
+        # Get the next available code
+        max_code = max(encoders['Maida Supplier 1'].values()) if encoders['Maida Supplier 1'] else -1
+        encoders['Maida Supplier 1'][supplier1] = max_code + 1
+    
+    if supplier2 not in encoders['Maida Supplier 2']:
+        # Get the next available code
+        max_code = max(encoders['Maida Supplier 2'].values()) if encoders['Maida Supplier 2'] else -1
+        encoders['Maida Supplier 2'][supplier2] = max_code + 1
+    
+    # Save updated encoders
+    os.makedirs(os.path.dirname(ENCODERS_PATH), exist_ok=True)
+    with open(ENCODERS_PATH, 'w') as f:
+        json.dump(encoders, f, indent=2)
+
+
 def train_model(df: pd.DataFrame):
     # Drop rows missing targets
     df_clean = df.dropna(subset=['Water added','ABC added'])
@@ -33,6 +58,7 @@ def train_model(df: pd.DataFrame):
     os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
     joblib.dump(model, MODEL_PATH)
     return model
+
 
 # Load raw data
 raw_df = pd.read_excel(DATA_PATH)
@@ -45,15 +71,37 @@ for col in ['Penetrometer Reading','Dough Temperature']:
 for col in ['Maida Supplier 1','Maida Supplier 2']:
     raw_df[col] = raw_df[col].astype('category').cat.codes
 
-# Load encoders
-with open(ENCODERS_PATH) as f:
-    encoders = json.load(f)
+
+# Load or create encoders
+if os.path.exists(ENCODERS_PATH):
+    with open(ENCODERS_PATH) as f:
+        encoders = json.load(f)
+else:
+    # Create default encoders if file doesn't exist
+    encoders = {
+        "Maida Supplier 1": {
+            "Gharana": 0,
+            "Gharana ": 1,
+            "Shanti ": 2,
+            "VNJ": 3
+        },
+        "Maida Supplier 2": {
+            "Aahar": 0,
+            "Gharana": 1,
+            "VNJ": 2
+        }
+    }
+    os.makedirs(os.path.dirname(ENCODERS_PATH), exist_ok=True)
+    with open(ENCODERS_PATH, 'w') as f:
+        json.dump(encoders, f, indent=2)
+
 
 # Load or train model
 if os.path.exists(MODEL_PATH):
     model = joblib.load(MODEL_PATH)
 else:
     model = train_model(raw_df)
+
 
 @app.route('/', methods=['GET','POST'])
 def index():
@@ -67,16 +115,25 @@ def index():
                                    submitted=False,
                                    encoders=encoders,
                                    error="Enter valid numbers.")
-        # Map suppliers
-        sup1 = request.form['Maida Supplier 1']
-        sup2 = request.form['Maida Supplier 2']
-        code1 = encoders['Maida Supplier 1'].get(sup1)
-        code2 = encoders['Maida Supplier 2'].get(sup2)
-        if code1 is None or code2 is None:
+        
+        # Get supplier names from text input
+        sup1 = request.form['Maida Supplier 1'].strip()
+        sup2 = request.form['Maida Supplier 2'].strip()
+        
+        # Validate supplier names are not empty
+        if not sup1 or not sup2:
             return render_template('index.html',
                                    submitted=False,
                                    encoders=encoders,
-                                   error="Unknown supplier.")
+                                   error="Supplier names cannot be empty.")
+        
+        # Update encoders with new suppliers if needed
+        update_encoders(sup1, sup2)
+        
+        # Get codes for suppliers
+        code1 = encoders['Maida Supplier 1'][sup1]
+        code2 = encoders['Maida Supplier 2'][sup2]
+        
         # Predict
         vals = numeric_vals + [code1, code2]
         X_new = pd.DataFrame([vals], columns=PRED_FEATURES)
@@ -90,8 +147,14 @@ def index():
                                form=request.form)
     return render_template('index.html', submitted=False, encoders=encoders)
 
+
 @app.route('/feedback', methods=['POST'])
 def feedback():
+    # Get supplier names and update encoders if needed
+    sup1 = request.form['Maida Supplier 1'].strip()
+    sup2 = request.form['Maida Supplier 2'].strip()
+    update_encoders(sup1, sup2)
+    
     # Build record including feedback-only inputs
     record = {
         'AIA':request.form['AIA'],
@@ -102,8 +165,8 @@ def feedback():
         'Moisture':request.form['Moisture'],
         'Penetrometer Reading':request.form['Penetrometer Reading'],
         'Dough Temperature':request.form['Dough Temperature'],
-        'Maida Supplier 1':encoders['Maida Supplier 1'][request.form['Maida Supplier 1']],
-        'Maida Supplier 2':encoders['Maida Supplier 2'][request.form['Maida Supplier 2']],
+        'Maida Supplier 1':encoders['Maida Supplier 1'][sup1],
+        'Maida Supplier 2':encoders['Maida Supplier 2'][sup2],
         'Pred Water':request.form['Pred Water'],
         'Pred ABC':request.form['Pred ABC'],
         'Actual Water':request.form['Actual Water'],
@@ -116,6 +179,7 @@ def feedback():
         fb_df.to_csv(FEEDBACK_CSV, mode='a', header=False, index=False)
     else:
         fb_df.to_csv(FEEDBACK_CSV, index=False)
+    
     # Retrain on combined data
     combined = pd.concat([raw_df, pd.read_csv(FEEDBACK_CSV)], sort=False)
     for col in ['Penetrometer Reading','Dough Temperature']:
@@ -127,7 +191,9 @@ def feedback():
     model = train_model(combined)
     return redirect(url_for('index'))
 
+
 if __name__=='__main__':
     app.run(debug=True)
+
 
 
