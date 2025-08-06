@@ -17,9 +17,22 @@
         <h2 class="mb-0">Predict Water & ABC</h2>
       </div>
       <div class="card-body">
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ 'danger' if category == 'error' else 'success' if category == 'success' else 'warning' }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+        
         {% if error %}
           <div class="alert alert-danger">{{ error }}</div>
         {% endif %}
+        
         <form method="post">
           <div class="row g-3">
             {% for f in ['AIA','TA','Alcoholic Acidity','Gluten','SV','Moisture'] %}
@@ -56,14 +69,16 @@
           </div>
         </form>
 
-
         {% if submitted %}
           <hr class="my-4"/>
-          <h4>Prediction</h4>
-          <p class="fs-5">
-            <strong>Water:</strong> {{ water }} L 
-            <strong>ABC:</strong> {{ abc }} kg
-          </p>
+          <div class="alert alert-info">
+            <h4>Prediction Results</h4>
+            <p class="fs-5 mb-0">
+              <strong>Water:</strong> {{ water }} L &nbsp;&nbsp;
+              <strong>ABC:</strong> {{ abc }} kg
+            </p>
+          </div>
+          
           <h5 class="mt-4">Provide Feedback</h5>
           <form action="{{ url_for('feedback') }}" method="post">
             {% for key in ['AIA','TA','Alcoholic Acidity','Gluten','SV','Moisture'] %}
@@ -75,12 +90,12 @@
             <input type="hidden" name="Pred ABC" value="{{ abc }}">
             <div class="row g-3">
               <div class="col-md-6">
-                <label class="form-label">Actual Water</label>
+                <label class="form-label">Actual Water (L)</label>
                 <input type="number" step="any" name="Actual Water"
                        class="form-control" required/>
               </div>
               <div class="col-md-6">
-                <label class="form-label">Actual ABC</label>
+                <label class="form-label">Actual ABC (kg)</label>
                 <input type="number" step="any" name="Actual ABC"
                        class="form-control" required/>
               </div>
@@ -90,22 +105,23 @@
                        class="form-control" required/>
               </div>
               <div class="col-md-6">
-                <label class="form-label">Dough Temperature</label>
+                <label class="form-label">Dough Temperature (°C)</label>
                 <input type="number" step="any" name="Dough Temperature"
                        class="form-control" required/>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Quality</label>
-                <select name="Quality" class="form-select">
-                  <option>Good</option>
-                  <option>Okay</option>
-                  <option>Bad</option>
+                <select name="Quality" class="form-select" required>
+                  <option value="">Select Quality</option>
+                  <option value="Good">Good</option>
+                  <option value="Okay">Okay</option>
+                  <option value="Bad">Bad</option>
                 </select>
               </div>
             </div>
             <div class="mt-4">
               <button type="submit" class="btn btn-success">
-                Submit Feedback
+                Submit Feedback & Retrain Model
               </button>
             </div>
           </form>
